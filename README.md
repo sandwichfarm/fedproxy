@@ -1,6 +1,8 @@
-# fedproxy
+# hedproxy
 
-Routes `.onion` domains over tor, `.i2p` domains over i2p, and `.loki` domains over lokinet through their respective SOCKS proxies.
+Routes `.onion` domains over tor, `.i2p` domains over i2p, and `.loki` domains over lokinet through their respective SOCKS proxies. 
+
+*hedproxy is a fork of [fedproxy](https://github.com/majestrate/fedproxy) by [majestrate](https://github.com/majestrate).* 
 
 ## Building
 
@@ -52,3 +54,14 @@ $ fedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -loki 127.0.0.1:
 ```
 
 The proxy will be available at the specified bind address. Each network (.onion, .i2p, .loki) will only be accessible if its respective proxy is configured. Requests to unconfigured networks will return an error.
+
+## Differences from fedproxy
+
+- Logging is off by default
+- Uses flags instead of positional arguments
+- lokinet has same routing pattern as tor and i2p instead of assuming the host will handle it with a transparent proxy.
+- A flag for clearnet URLS to be optionally routed through clearnet instead of tor.
+
+## Acknowledgements
+
+**hedproxy** is a fork of [fedproxy](https://github.com/majestrate/fedproxy) by [majestrate](https://github.com/majestrate). 
