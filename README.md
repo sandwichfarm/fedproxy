@@ -55,6 +55,12 @@ $ fedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -loki 127.0.0.1:
 
 The proxy will be available at the specified bind address. Each network (.onion, .i2p, .loki) will only be accessible if its respective proxy is configured. Requests to unconfigured networks will return an error.
 
+## Why the fork?
+I liked the way **fedproxy** but needed a less opinionated solution.
+
+**fedproxy** is loki-first and treats clearnet, tor and i2p as second-class citizens. 
+**headproxy** treats all as first class citizens.
+
 ## Differences from fedproxy
 
 - Logging is off by default
