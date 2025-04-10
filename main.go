@@ -53,16 +53,25 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 		if h.verbose {
 			fmt.Printf("Using lokinet for: %s\n", host)
 		}
+		if h.loki == nil {
+			return nil, fmt.Errorf("lokinet proxy not configured")
+		}
 		return h.loki.Dial("tcp", addr)
 	}
 	if strings.HasSuffix(host, ".i2p") {
 		if h.verbose {
 			fmt.Printf("Using i2p for: %s\n", host)
 		}
+		if h.i2p == nil {
+			return nil, fmt.Errorf("i2p proxy not configured")
+		}
 		return h.i2p.Dial("tcp", addr)
 	}
 	if h.verbose {
 		fmt.Printf("Using tor for: %s\n", host)
+	}
+	if h.onion == nil {
+		return nil, fmt.Errorf("tor proxy not configured")
 	}
 	return h.onion.Dial("tcp", addr)
 }
@@ -109,38 +118,77 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Required flags
+	proto := flag.String("proto", "", "Protocol to use (http or socks)")
+	bindAddr := flag.String("bind", "", "Address to bind to (e.g., 127.0.0.1:2000)")
+	
+	// Optional proxy flags
+	onionSocks := flag.String("tor", "", "Tor SOCKS proxy address (e.g., 127.0.0.1:9050)")
+	i2pSocks := flag.String("i2p", "", "I2P SOCKS proxy address (e.g., 127.0.0.1:4447)")
+	lokiSocks := flag.String("loki", "", "Lokinet SOCKS proxy address (e.g., 127.0.0.1:9050)")
+	
+	// Other flags
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 	passthrough := flag.String("passthrough", "", "Set passthrough mode (e.g., 'clearnet' for direct clearnet access)")
+
 	flag.Parse()
 
-	args := flag.Args()
-	if len(args) < 5 {
-		fmt.Printf("usage: %s [flags] proto bindaddr onionsocksaddr i2psocksaddr lokisocksaddr\n", os.Args[0])
-		fmt.Println("Flags:")
+	// Validate required flags
+	if *proto == "" {
+		fmt.Println("Error: -proto flag is required (http or socks)")
 		flag.PrintDefaults()
-		return
+		os.Exit(1)
 	}
-	
-	usehttp := args[0] == "http"
-	onionsock, err := proxy.SOCKS5("tcp", args[2], nil, nil)
-	if err != nil {
-		fmt.Printf("failed to create upstream proxy to %s, %s", args[2], err.Error())
-		return
+	if *proto != "http" && *proto != "socks" {
+		fmt.Println("Error: -proto must be either 'http' or 'socks'")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
-	i2psock, err := proxy.SOCKS5("tcp", args[3], nil, nil)
-	if err != nil {
-		fmt.Printf("failed to create upstream proxy to %s, %s", args[3], err.Error())
-		return
+	if *bindAddr == "" {
+		fmt.Println("Error: -bind flag is required")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
-	lokisock, err := proxy.SOCKS5("tcp", args[4], nil, nil)
-	if err != nil {
-		fmt.Printf("failed to create upstream proxy to %s, %s", args[4], err.Error())
-		return
+
+	// Validate that at least one proxy is configured
+	if *onionSocks == "" && *i2pSocks == "" && *lokiSocks == "" {
+		fmt.Println("Error: At least one proxy must be configured (-tor, -i2p, or -loki)")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
-	
+
+	// Initialize proxy dialers
+	var onionsock, i2psock, lokisock proxy.Dialer
+	var err error
+
+	if *onionSocks != "" {
+		onionsock, err = proxy.SOCKS5("tcp", *onionSocks, nil, nil)
+		if err != nil {
+			fmt.Printf("Failed to create Tor proxy to %s: %s\n", *onionSocks, err.Error())
+			os.Exit(1)
+		}
+	}
+
+	if *i2pSocks != "" {
+		i2psock, err = proxy.SOCKS5("tcp", *i2pSocks, nil, nil)
+		if err != nil {
+			fmt.Printf("Failed to create I2P proxy to %s: %s\n", *i2pSocks, err.Error())
+			os.Exit(1)
+		}
+	}
+
+	if *lokiSocks != "" {
+		lokisock, err = proxy.SOCKS5("tcp", *lokiSocks, nil, nil)
+		if err != nil {
+			fmt.Printf("Failed to create Lokinet proxy to %s: %s\n", *lokiSocks, err.Error())
+			os.Exit(1)
+		}
+	}
+
+	usehttp := *proto == "http"
 	if usehttp {
 		serv := &http.Server{
-			Addr: args[1],
+			Addr: *bindAddr,
 			Handler: &httpProxyHandler{
 				onion:      onionsock,
 				i2p:        i2psock,
@@ -151,7 +199,7 @@ func main() {
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
 		if *verbose {
-			fmt.Printf("setting up http proxy at %s\n", serv.Addr)
+			fmt.Printf("Setting up HTTP proxy at %s\n", serv.Addr)
 		}
 		err = serv.ListenAndServe()
 		if err != nil {
@@ -181,33 +229,42 @@ func main() {
 					if *verbose {
 						fmt.Printf("Using lokinet for: %s\n", host)
 					}
+					if lokisock == nil {
+						return nil, fmt.Errorf("lokinet proxy not configured")
+					}
 					return lokisock.Dial("tcp", addr)
 				}
 				if strings.HasSuffix(host, ".i2p") {
 					if *verbose {
 						fmt.Printf("Using i2p for: %s\n", host)
 					}
+					if i2psock == nil {
+						return nil, fmt.Errorf("i2p proxy not configured")
+					}
 					return i2psock.Dial("tcp", addr)
 				}
 				if *verbose {
 					fmt.Printf("Using tor for: %s\n", host)
+				}
+				if onionsock == nil {
+					return nil, fmt.Errorf("tor proxy not configured")
 				}
 				return onionsock.Dial("tcp", addr)
 			},
 		})
 
 		if err != nil {
-			fmt.Printf("failed to create socks proxy %s", err.Error())
-			return
+			fmt.Printf("Failed to create SOCKS proxy: %s\n", err.Error())
+			os.Exit(1)
 		}
 
-		l, err := net.Listen("tcp", args[1])
+		l, err := net.Listen("tcp", *bindAddr)
 		if err != nil {
-			fmt.Printf("failed to listen on %s, %s", args[1], err.Error())
-			return
+			fmt.Printf("Failed to listen on %s: %s\n", *bindAddr, err.Error())
+			os.Exit(1)
 		}
 		if *verbose {
-			fmt.Printf("setting up socks proxy at %s\n", args[1])
+			fmt.Printf("Setting up SOCKS proxy at %s\n", *bindAddr)
 		}
 		serv.Serve(l)
 	}

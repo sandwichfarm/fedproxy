@@ -13,41 +13,42 @@ $ cp $(GOPATH)/bin/fedproxy /usr/local/bin/fedproxy
 
 Basic usage:
 ```bash
-$ fedproxy [flags] proto bindaddr onionsocksaddr i2psocksaddr lokisocksaddr
+$ fedproxy -proto <protocol> -bind <address> [proxy flags] [other flags]
 ```
 
-Where:
-- `proto` is either "http" or "socks"
-- `bindaddr` is the address to listen on (e.g., "127.0.0.1:2000")
-- `onionsocksaddr` is the Tor SOCKS proxy address (e.g., "127.0.0.1:9050")
-- `i2psocksaddr` is the I2P SOCKS proxy address (e.g., "127.0.0.1:4447")
-- `lokisocksaddr` is the Lokinet SOCKS proxy address (e.g., "127.0.0.1:9050")
+### Required Flags
+- `-proto`: Protocol to use ("http" or "socks")
+- `-bind`: Address to bind to (e.g., "127.0.0.1:2000")
 
-### Flags
+### Proxy Flags (at least one required)
+- `-tor`: Tor SOCKS proxy address (e.g., "127.0.0.1:9050")
+- `-i2p`: I2P SOCKS proxy address (e.g., "127.0.0.1:4447")
+- `-loki`: Lokinet SOCKS proxy address (e.g., "127.0.0.1:9050")
 
+### Optional Flags
 - `-verbose`: Enable verbose logging (default: false)
 - `-passthrough`: Set passthrough mode (e.g., 'clearnet' for direct clearnet access)
 
 ### Examples
 
-1. Basic SOCKS proxy:
+1. Basic SOCKS proxy with Tor only:
 ```bash
-$ fedproxy socks 127.0.0.1:2000 127.0.0.1:9050 127.0.0.1:4447 127.0.0.1:9050
+$ fedproxy -proto socks -bind 127.0.0.1:2000 -tor 127.0.0.1:9050
 ```
 
-2. HTTP proxy with verbose logging:
+2. HTTP proxy with all networks and verbose logging:
 ```bash
-$ fedproxy -verbose http 127.0.0.1:8080 127.0.0.1:9050 127.0.0.1:4447 127.0.0.1:9050
+$ fedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -i2p 127.0.0.1:4447 -loki 127.0.0.1:9050 -verbose
 ```
 
-3. SOCKS proxy with clearnet passthrough:
+3. SOCKS proxy with I2P and clearnet passthrough:
 ```bash
-$ fedproxy -passthrough=clearnet socks 127.0.0.1:2000 127.0.0.1:9050 127.0.0.1:4447 127.0.0.1:9050
+$ fedproxy -proto socks -bind 127.0.0.1:2000 -i2p 127.0.0.1:4447 -passthrough=clearnet
 ```
 
-4. HTTP proxy with both flags:
+4. HTTP proxy with Tor and Lokinet:
 ```bash
-$ fedproxy -verbose -passthrough=clearnet http 127.0.0.1:8080 127.0.0.1:9050 127.0.0.1:4447 127.0.0.1:9050
+$ fedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -loki 127.0.0.1:9050
 ```
 
-Then use the proxy at the specified bind address (e.g., `127.0.0.1:2000` for SOCKS or `127.0.0.1:8080` for HTTP).
+The proxy will be available at the specified bind address. Each network (.onion, .i2p, .loki) will only be accessible if its respective proxy is configured. Requests to unconfigured networks will return an error.
