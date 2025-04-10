@@ -64,7 +64,7 @@ The proxy will be available at the specified bind address. Each network (.onion,
 I liked **fedproxy** but needed a less opinionated solution.
 
 **fedproxy** is loki-first and treats tor and i2p as second-class citizens, and clearnet as a third-class citizen.
-**headproxy** treats all as first class citizens.
+**hedproxy** treats all as first class citizens.
 
 ## Differences from fedproxy
 
