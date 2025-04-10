@@ -1,4 +1,4 @@
-module github.com/majestrate/fedproxy
+module github.com/sandwichfarm/hedproxy
 
 go 1.13
 
