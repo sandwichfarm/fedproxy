@@ -50,7 +50,7 @@ $ fhedproxyedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -i2p 127
 
 3. SOCKS proxy with I2P and clearnet passthrough:
 ```bash
-$ hedproxy -proto socks -bind 127.0.0.1:2000 -i2p 127.0.0.1:4447 -passthrough=clearnet
+$ hedproxy -proto socks -bind 127.0.0.1:2000 -i2p 127.0.0.1:4447 -passthrough clearnet
 ```
 
 4. HTTP proxy with Tor and Lokinet:

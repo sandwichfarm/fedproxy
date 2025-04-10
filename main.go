@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -36,9 +37,17 @@ func copyHeader(dst, src http.Header) {
 }
 
 func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
-	host, _, err := net.SplitHostPort(addr)
+	// Parse the address as a URL
+	parsedURL, err := url.Parse("//" + addr) // Add // prefix to parse as authority
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid address format %s: %v", addr, err)
+	}
+
+	// Get host and port
+	host := parsedURL.Hostname()
+	port := parsedURL.Port()
+	if port == "" {
+		port = "80" // Default to port 80 if not specified
 	}
 	
 	// Check if it's a clearnet URL and passthrough is set to clearnet
@@ -46,7 +55,7 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 		if h.verbose {
 			fmt.Printf("Using clearnet for: %s\n", host)
 		}
-		return net.Dial("tcp", addr)
+		return net.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 	}
 	
 	if strings.HasSuffix(host, ".loki") {
@@ -56,7 +65,7 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 		if h.loki == nil {
 			return nil, fmt.Errorf("lokinet proxy not configured")
 		}
-		return h.loki.Dial("tcp", addr)
+		return h.loki.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 	}
 	if strings.HasSuffix(host, ".i2p") {
 		if h.verbose {
@@ -65,7 +74,7 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 		if h.i2p == nil {
 			return nil, fmt.Errorf("i2p proxy not configured")
 		}
-		return h.i2p.Dial("tcp", addr)
+		return h.i2p.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 	}
 	if h.verbose {
 		fmt.Printf("Using tor for: %s\n", host)
@@ -73,7 +82,7 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	if h.onion == nil {
 		return nil, fmt.Errorf("tor proxy not configured")
 	}
-	return h.onion.Dial("tcp", addr)
+	return h.onion.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 }
 
 func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
