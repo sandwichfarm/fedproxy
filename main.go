@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/majestrate/fedproxy/internal/socks5"
+	"github.com/sandwichfarm/hedproxy/internal/socks5"
 	"golang.org/x/net/proxy"
 	"io"
 	"net"

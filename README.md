@@ -4,18 +4,23 @@ Routes `.onion` domains over tor, `.i2p` domains over i2p, and `.loki` domains o
 
 *hedproxy is a fork of [fedproxy](https://github.com/majestrate/fedproxy) by [majestrate](https://github.com/majestrate).* 
 
+## Install 
+```bash 
+go install github.com/sandwichfarm/hedproxy
+```
+
 ## Building
 
 ```bash
-$ go get -u github.com/majestrate/fedproxy
-$ cp $(GOPATH)/bin/fedproxy /usr/local/bin/fedproxy
+$ go get -u github.com/sandwichfarm/hedproxy
+$ cp $(GOPATH)/bin/hedproxy /usr/local/bin/hedproxy
 ```
 
 ## Usage
 
 Basic usage:
 ```bash
-$ fedproxy -proto <protocol> -bind <address> [proxy flags] [other flags]
+$ hedproxy -proto <protocol> -bind <address> [proxy flags] [other flags]
 ```
 
 ### Required Flags
@@ -35,22 +40,22 @@ $ fedproxy -proto <protocol> -bind <address> [proxy flags] [other flags]
 
 1. Basic SOCKS proxy with Tor only:
 ```bash
-$ fedproxy -proto socks -bind 127.0.0.1:2000 -tor 127.0.0.1:9050
+$ hedproxy -proto socks -bind 127.0.0.1:2000 -tor 127.0.0.1:9050
 ```
 
 2. HTTP proxy with all networks and verbose logging:
 ```bash
-$ fedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -i2p 127.0.0.1:4447 -loki 127.0.0.1:9050 -verbose
+$ fhedproxyedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -i2p 127.0.0.1:4447 -loki 127.0.0.1:9050 -verbose
 ```
 
 3. SOCKS proxy with I2P and clearnet passthrough:
 ```bash
-$ fedproxy -proto socks -bind 127.0.0.1:2000 -i2p 127.0.0.1:4447 -passthrough=clearnet
+$ hedproxy -proto socks -bind 127.0.0.1:2000 -i2p 127.0.0.1:4447 -passthrough=clearnet
 ```
 
 4. HTTP proxy with Tor and Lokinet:
 ```bash
-$ fedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -loki 127.0.0.1:9050
+$ hedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -loki 127.0.0.1:9050
 ```
 
 The proxy will be available at the specified bind address. Each network (.onion, .i2p, .loki) will only be accessible if its respective proxy is configured. Requests to unconfigured networks will return an error.
