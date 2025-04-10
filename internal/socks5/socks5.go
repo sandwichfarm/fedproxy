@@ -3,6 +3,7 @@ package socks5
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -12,43 +13,26 @@ const (
 	socks5Version = uint8(5)
 )
 
-// Config is used to setup and configure a Server
 type Config struct {
-	// AuthMethods can be provided to implement custom authentication
-	// By default, "auth-less" mode is enabled.
-	// For password-based auth use UserPassAuthenticator.
 	AuthMethods []Authenticator
 
-	// If provided, username/password authentication is enabled,
-	// by appending a UserPassAuthenticator to AuthMethods. If not provided,
-	// and AUthMethods is nil, then "auth-less" mode is enabled.
 	Credentials CredentialStore
 
-	// Rules is provided to enable custom logic around permitting
-	// various commands. If not provided, PermitAll is used.
 	Rules RuleSet
 
-	// BindIP is used for bind or udp associate
 	BindIP net.IP
 
-	// Logger can be used to provide a custom log target.
-	// Defaults to stdout.
 	Logger *log.Logger
 
-	// Optional function for dialing out
 	Dial func(addr string) (net.Conn, error)
 }
 
-// Server is reponsible for accepting connections and handling
-// the details of the SOCKS5 protocol
 type Server struct {
 	config      *Config
 	authMethods map[uint8]Authenticator
 }
 
-// New creates a new Server and potentially returns an error
 func New(conf *Config) (*Server, error) {
-	// Ensure we have at least one authentication method enabled
 	if len(conf.AuthMethods) == 0 {
 		if conf.Credentials != nil {
 			conf.AuthMethods = []Authenticator{&UserPassAuthenticator{conf.Credentials}}
@@ -57,12 +41,10 @@ func New(conf *Config) (*Server, error) {
 		}
 	}
 
-	// Ensure we have a rule set
 	if conf.Rules == nil {
 		conf.Rules = PermitAll()
 	}
 
-	// Ensure we have a log target
 	if conf.Logger == nil {
 		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
 	}
@@ -80,7 +62,6 @@ func New(conf *Config) (*Server, error) {
 	return server, nil
 }
 
-// ListenAndServe is used to create a listener and serve on it
 func (s *Server) ListenAndServe(network, addr string) error {
 	l, err := net.Listen(network, addr)
 	if err != nil {
@@ -89,7 +70,6 @@ func (s *Server) ListenAndServe(network, addr string) error {
 	return s.Serve(l)
 }
 
-// Serve is used to serve connections from a listener
 func (s *Server) Serve(l net.Listener) error {
 	for {
 		conn, err := l.Accept()
@@ -101,26 +81,22 @@ func (s *Server) Serve(l net.Listener) error {
 	return nil
 }
 
-// ServeConn is used to serve a single connection.
 func (s *Server) ServeConn(conn net.Conn) error {
 	defer conn.Close()
 	bufConn := bufio.NewReader(conn)
 
-	// Read the version byte
 	version := []byte{0}
 	if _, err := bufConn.Read(version); err != nil {
 		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
 		return err
 	}
 
-	// Ensure we are compatible
 	if version[0] != socks5Version {
 		err := fmt.Errorf("Unsupported SOCKS version: %v", version)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
 
-	// Authenticate the connection
 	authContext, err := s.authenticate(conn, bufConn)
 	if err != nil {
 		err = fmt.Errorf("Failed to authenticate: %v", err)
@@ -142,8 +118,13 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		req.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
 
-	// Process the client request
 	if err := s.handleRequest(&req, conn); err != nil {
+		if netErr, ok := err.(*net.OpError); ok && netErr.Err.Error() == "use of closed network connection" {
+			return nil
+		}
+		if err == io.EOF {
+			return nil
+		}
 		err = fmt.Errorf("Failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err

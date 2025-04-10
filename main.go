@@ -16,6 +16,7 @@ import (
 type httpProxyHandler struct {
 	onion      proxy.Dialer
 	i2p        proxy.Dialer
+	loki       proxy.Dialer
 	verbose    bool
 	passthrough string
 }
@@ -52,7 +53,7 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 		if h.verbose {
 			fmt.Printf("Using lokinet for: %s\n", host)
 		}
-		return net.Dial("tcp", addr)
+		return h.loki.Dial("tcp", addr)
 	}
 	if strings.HasSuffix(host, ".i2p") {
 		if h.verbose {
@@ -113,8 +114,8 @@ func main() {
 	flag.Parse()
 
 	args := flag.Args()
-	if len(args) < 4 {
-		fmt.Printf("usage: %s [flags] proto bindaddr onionsocksaddr i2psocksaddr\n", os.Args[0])
+	if len(args) < 5 {
+		fmt.Printf("usage: %s [flags] proto bindaddr onionsocksaddr i2psocksaddr lokisocksaddr\n", os.Args[0])
 		fmt.Println("Flags:")
 		flag.PrintDefaults()
 		return
@@ -131,6 +132,11 @@ func main() {
 		fmt.Printf("failed to create upstream proxy to %s, %s", args[3], err.Error())
 		return
 	}
+	lokisock, err := proxy.SOCKS5("tcp", args[4], nil, nil)
+	if err != nil {
+		fmt.Printf("failed to create upstream proxy to %s, %s", args[4], err.Error())
+		return
+	}
 	
 	if usehttp {
 		serv := &http.Server{
@@ -138,6 +144,7 @@ func main() {
 			Handler: &httpProxyHandler{
 				onion:      onionsock,
 				i2p:        i2psock,
+				loki:       lokisock,
 				verbose:    *verbose,
 				passthrough: *passthrough,
 			},
@@ -174,7 +181,7 @@ func main() {
 					if *verbose {
 						fmt.Printf("Using lokinet for: %s\n", host)
 					}
-					return net.Dial("tcp", addr)
+					return lokisock.Dial("tcp", addr)
 				}
 				if strings.HasSuffix(host, ".i2p") {
 					if *verbose {
