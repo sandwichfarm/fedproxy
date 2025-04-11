@@ -15,6 +15,15 @@ import (
 	"strings"
 )
 
+const (
+	defaultTorHost   = "127.0.0.1"
+	defaultI2PHost   = "127.0.0.1"
+	defaultLokiHost  = "127.0.0.1"
+	defaultTorPort   = "9050"
+	defaultI2PPort   = "4447"
+	defaultLokiPort  = "1194"
+)
+
 type httpProxyHandler struct {
 	onion      proxy.Dialer
 	i2p        proxy.Dialer
@@ -132,7 +141,7 @@ func main() {
 	// Optional proxy flags
 	onionSocks := flag.String("tor", "", "Tor SOCKS proxy address (e.g., 127.0.0.1:9050)")
 	i2pSocks := flag.String("i2p", "", "I2P SOCKS proxy address (e.g., 127.0.0.1:4447)")
-	lokiSocks := flag.String("loki", "", "Lokinet SOCKS proxy address (e.g., 127.0.0.1:9050)")
+	lokiSocks := flag.String("loki", "", "Lokinet SOCKS proxy address (e.g., 127.0.0.1:1194)")
 	
 	// Logging flags
 	verbose := flag.Bool("v", false, "Enable verbose logging (DEBUG level)")
@@ -182,40 +191,59 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize proxy dialers
+	var onionsock, i2psock, lokisock proxy.Dialer
+	var err error
+
+	// Helper function to get proxy address with defaults if needed
+	getProxyAddr := func(addr string, defaultHost string, defaultPort string) string {
+		if addr == "" {
+			return ""
+		}
+		if addr == "true" { // Flag was provided without value
+			return fmt.Sprintf("%s:%s", defaultHost, defaultPort)
+		}
+		if !strings.Contains(addr, ":") {
+			return fmt.Sprintf("%s:%s", addr, defaultPort)
+		}
+		return addr
+	}
+
+	// Set up proxy addresses with defaults if needed
+	torAddr := getProxyAddr(*onionSocks, defaultTorHost, defaultTorPort)
+	i2pAddr := getProxyAddr(*i2pSocks, defaultI2PHost, defaultI2PPort)
+	lokiAddr := getProxyAddr(*lokiSocks, defaultLokiHost, defaultLokiPort)
+
 	// Validate that at least one proxy is configured
-	if *onionSocks == "" && *i2pSocks == "" && *lokiSocks == "" {
+	if torAddr == "" && i2pAddr == "" && lokiAddr == "" {
 		logging.Error("At least one proxy must be configured (-tor, -i2p, or -loki)")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	// Initialize proxy dialers
-	var onionsock, i2psock, lokisock proxy.Dialer
-	var err error
-
-	if *onionSocks != "" {
-		logging.Info("Initializing Tor proxy at %s", *onionSocks)
-		onionsock, err = proxy.SOCKS5("tcp", *onionSocks, nil, nil)
+	if torAddr != "" {
+		logging.Info("Initializing Tor proxy at %s", torAddr)
+		onionsock, err = proxy.SOCKS5("tcp", torAddr, nil, nil)
 		if err != nil {
-			logging.Error("Failed to create Tor proxy to %s: %s", *onionSocks, err.Error())
+			logging.Error("Failed to create Tor proxy to %s: %s", torAddr, err.Error())
 			os.Exit(1)
 		}
 	}
 
-	if *i2pSocks != "" {
-		logging.Info("Initializing I2P proxy at %s", *i2pSocks)
-		i2psock, err = proxy.SOCKS5("tcp", *i2pSocks, nil, nil)
+	if i2pAddr != "" {
+		logging.Info("Initializing I2P proxy at %s", i2pAddr)
+		i2psock, err = proxy.SOCKS5("tcp", i2pAddr, nil, nil)
 		if err != nil {
-			logging.Error("Failed to create I2P proxy to %s: %s", *i2pSocks, err.Error())
+			logging.Error("Failed to create I2P proxy to %s: %s", i2pAddr, err.Error())
 			os.Exit(1)
 		}
 	}
 
-	if *lokiSocks != "" {
-		logging.Info("Initializing Lokinet proxy at %s", *lokiSocks)
-		lokisock, err = proxy.SOCKS5("tcp", *lokiSocks, nil, nil)
+	if lokiAddr != "" {
+		logging.Info("Initializing Lokinet proxy at %s", lokiAddr)
+		lokisock, err = proxy.SOCKS5("tcp", lokiAddr, nil, nil)
 		if err != nil {
-			logging.Error("Failed to create Lokinet proxy to %s: %s", *lokiSocks, err.Error())
+			logging.Error("Failed to create Lokinet proxy to %s: %s", lokiAddr, err.Error())
 			os.Exit(1)
 		}
 	}
