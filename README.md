@@ -1,70 +1,120 @@
-# hedproxy
+# HedProxy
 
-Routes `.onion` domains over tor, `.i2p` domains over i2p, and `.loki` domains over lokinet through their respective SOCKS proxies. 
+A simple proxy that routes traffic through Tor, I2P, and Lokinet based on the domain being accessed.
 
-*hedproxy is a fork of [fedproxy](https://github.com/majestrate/fedproxy) by [majestrate](https://github.com/majestrate).* 
+## Features
 
-## Install 
-```bash 
-go install github.com/sandwichfarm/hedproxy
-```
+- Automatically routes `.onion` domains through Tor
+- Automatically routes `.i2p` domains through I2P
+- Automatically routes `.loki` domains through Lokinet
+- Supports both HTTP and SOCKS5 proxy protocols
+- Configurable logging levels
+- Optional clearnet passthrough mode
 
-## Building
+## Requirements
+
+- Go 1.16 or later
+- Tor SOCKS proxy (default: 127.0.0.1:9050)
+- I2P SOCKS proxy (default: 127.0.0.1:4447)
+- Lokinet SOCKS proxy (default: 127.0.0.1:9050)
+
+## Installation
 
 ```bash
-$ go get -u github.com/sandwichfarm/hedproxy
-$ cp $(GOPATH)/bin/hedproxy /usr/local/bin/hedproxy
+go install github.com/sandwichfarm/hedproxy@latest
 ```
 
 ## Usage
 
-Basic usage:
 ```bash
-$ hedproxy -proto <protocol> -bind <address> [proxy flags] [other flags]
+hedproxy <proto> <bind> [options]
 ```
 
-### Required Flags
-- `-proto`: Protocol to use ("http" or "socks")
-- `-bind`: Address to bind to (e.g., "127.0.0.1:2000")
+### Arguments
 
-### Proxy Flags (at least one required)
-- `-tor`: Tor SOCKS proxy address (e.g., "127.0.0.1:9050")
-- `-i2p`: I2P SOCKS proxy address (e.g., "127.0.0.1:4447")
-- `-loki`: Lokinet SOCKS proxy address (e.g., "127.0.0.1:9050")
+- `proto`: Protocol to use (http or socks)
+- `bind`: Address to bind to (e.g., 127.0.0.1:2000)
 
-### Optional Flags
-- `-verbose`: Enable verbose logging (default: false)
+### Options
+
+- `-tor`: Tor SOCKS proxy address (e.g., 127.0.0.1:9050)
+- `-i2p`: I2P SOCKS proxy address (e.g., 127.0.0.1:4447)
+- `-loki`: Lokinet SOCKS proxy address (e.g., 127.0.0.1:9050)
+- `-v`: Enable verbose logging (DEBUG level)
+- `-logLevel`: Set log level (SILENT, ERROR, WARNING, NOTICE, INFO, DEBUG)
 - `-passthrough`: Set passthrough mode (e.g., 'clearnet' for direct clearnet access)
 
 ### Examples
 
-1. Basic SOCKS proxy with Tor only:
+Start an HTTP proxy on port 2000:
 ```bash
-$ hedproxy -proto socks -bind 127.0.0.1:2000 -tor 127.0.0.1:9050
+hedproxy http 127.0.0.1:2000 -tor 127.0.0.1:9050
 ```
 
-2. HTTP proxy with all networks and verbose logging:
+Start a SOCKS5 proxy on port 2001 with all three networks:
 ```bash
-$ fhedproxyedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -i2p 127.0.0.1:4447 -loki 127.0.0.1:9050 -verbose
+hedproxy socks 127.0.0.1:2001 -tor 127.0.0.1:9050 -i2p 127.0.0.1:4447 -loki 127.0.0.1:9050
 ```
 
-3. SOCKS proxy with I2P and clearnet passthrough:
+Start a proxy with verbose logging:
 ```bash
-$ hedproxy -proto socks -bind 127.0.0.1:2000 -i2p 127.0.0.1:4447 -passthrough clearnet
+hedproxy http 127.0.0.1:2000 -tor 127.0.0.1:9050 -v
 ```
 
-4. HTTP proxy with Tor and Lokinet:
+Start a proxy with specific log level:
 ```bash
-$ hedproxy -proto http -bind 127.0.0.1:8080 -tor 127.0.0.1:9050 -loki 127.0.0.1:9050
+hedproxy http 127.0.0.1:2000 -tor 127.0.0.1:9050 -logLevel INFO
 ```
 
-The proxy will be available at the specified bind address. Each network (.onion, .i2p, .loki) will only be accessible if its respective proxy is configured. Requests to unconfigured networks will return an error.
+Start a proxy with clearnet passthrough:
+```bash
+hedproxy http 127.0.0.1:2000 -tor 127.0.0.1:9050 -passthrough clearnet
+```
+
+## Logging
+
+HedProxy supports multiple log levels:
+
+- `SILENT`: No logging
+- `ERROR`: Error messages only
+- `WARNING`: Warning and error messages
+- `NOTICE`: Notice, warning, and error messages
+- `INFO`: Info, notice, warning, and error messages
+- `DEBUG`: All messages including debug information
+
+The default log level is `ERROR`. You can use the `-v` flag as a shortcut for `DEBUG` level, or specify a specific level using `-logLevel`. If both are specified, `-logLevel` takes precedence.
+
+## Configuration
+
+### HTTP Proxy
+
+To use the HTTP proxy, configure your application to use the proxy address you specified. For example, in Firefox:
+
+1. Go to Preferences > Network Settings
+2. Select "Manual proxy configuration"
+3. Enter the HTTP proxy address (e.g., 127.0.0.1:2000)
+
+### SOCKS5 Proxy
+
+To use the SOCKS5 proxy, configure your application to use the SOCKS5 proxy address you specified. For example, in Firefox:
+
+1. Go to Preferences > Network Settings
+2. Select "Manual proxy configuration"
+3. Enter the SOCKS5 proxy address (e.g., 127.0.0.1:2001)
+4. Select "SOCKS v5"
+
+## Notes
+
+- At least one proxy (Tor, I2P, or Lokinet) must be configured
+- The proxy will automatically route traffic based on the domain being accessed
+- If `-passthrough clearnet` is specified, clearnet traffic will be routed directly instead of through Tor
+- When using the HTTP proxy, HTTPS traffic is supported through CONNECT tunneling
 
 ## Why the fork?
 I liked **fedproxy** but needed a less opinionated solution.
 
 **fedproxy** is loki-first and treats tor and i2p as second-class citizens, and clearnet as a third-class citizen.
-**headproxy** treats all as first class citizens.
+**hedproxy** treats all as first class citizens.
 
 ## Differences from fedproxy
 
