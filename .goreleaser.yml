@@ -1,0 +1,98 @@
+version: 2
+
+project_name: hedproxy
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+      - freebsd
+      - openbsd
+      - netbsd
+    goarch:
+      - amd64
+      - arm64
+      - 386
+      - arm
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    builds:
+      - default
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+release:
+  github:
+    owner: sandwichfarm
+    name: hedproxy
+  draft: false
+  prerelease: false
+  name_template: "{{.ProjectName}} {{.Version}}"
+  header: |
+    ## Installation
+
+    Download the appropriate binary for your system from the assets below.
+
+    ### Linux/macOS
+    ```bash
+    # Download and extract
+    curl -L https://github.com/sandwichfarm/hedproxy/releases/download/v{{.Version}}/hedproxy_{{.Os}}_{{.Arch}}.tar.gz | tar xz
+
+    # Make executable
+    chmod +x hedproxy
+
+    # Move to PATH
+    sudo mv hedproxy /usr/local/bin/
+    ```
+
+    ### Windows
+    1. Download the appropriate zip file
+    2. Extract the contents
+    3. Add the directory to your PATH
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  name: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^refactor:'
+      - '^style:'
+      - '^Merge pull request'
+      - '^Merge branch' 
