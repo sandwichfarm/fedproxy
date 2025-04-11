@@ -158,11 +158,19 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.Parse()
+	// Parse flags but don't exit on error
+	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
+	err := flag.CommandLine.Parse(os.Args[1:])
+	if err != nil && err != flag.ErrHelp {
+		logging.Error("Error parsing flags: %v", err)
+		flag.Usage()
+		os.Exit(1)
+	}
 
-	// Get positional arguments
+	// Get positional arguments from the remaining args
 	args := flag.Args()
 	if len(args) < 2 {
+		logging.Error("Missing required arguments: proto and bind")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -213,6 +221,10 @@ func main() {
 	torAddr := getProxyAddr(*onionSocks, defaultTorHost, defaultTorPort)
 	i2pAddr := getProxyAddr(*i2pSocks, defaultI2PHost, defaultI2PPort)
 	lokiAddr := getProxyAddr(*lokiSocks, defaultLokiHost, defaultLokiPort)
+
+	logging.Debug("Tor proxy address: %s", torAddr)
+	logging.Debug("I2P proxy address: %s", i2pAddr)
+	logging.Debug("Lokinet proxy address: %s", lokiAddr)
 
 	// Validate that at least one proxy is configured
 	if torAddr == "" && i2pAddr == "" && lokiAddr == "" {
