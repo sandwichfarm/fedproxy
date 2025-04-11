@@ -53,11 +53,7 @@ release:
   draft: false
   prerelease: false
   name_template: "{{.ProjectName}} {{.Version}}"
-  body: |
-    ## Changelog
-
-    {{.Changelog}}
-
+  header: |
     ## Installation
 
     Download the appropriate binary for your system from the assets below.
