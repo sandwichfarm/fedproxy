@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 )
 
 const (
@@ -46,7 +45,7 @@ func New(conf *Config) (*Server, error) {
 	}
 
 	if conf.Logger == nil {
-		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
+		conf.Logger = log.New(io.Discard, "", 0)
 	}
 
 	server := &Server{

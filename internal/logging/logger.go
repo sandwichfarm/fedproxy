@@ -27,6 +27,10 @@ func SetLevel(level LogLevel) {
 	currentLevel = level
 }
 
+func GetCurrentLevel() LogLevel {
+	return currentLevel
+}
+
 func SetOutput(w io.Writer) {
 	output = w
 }

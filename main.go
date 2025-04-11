@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/sandwichfarm/hedproxy/internal/logging"
+	"github.com/sandwichfarm/hedproxy/internal/silentproxy"
 	"github.com/sandwichfarm/hedproxy/internal/socks5"
 	"golang.org/x/net/proxy"
 	"io"
@@ -59,7 +60,10 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	// Parse the address as a URL
 	parsedURL, err := url.Parse("//" + addr) // Add // prefix to parse as authority
 	if err != nil {
-		logging.Error("Invalid address format %s: %v", addr, err)
+		// Only log if not in SILENT mode
+		if logging.GetCurrentLevel() != logging.SILENT {
+			logging.Error("Invalid address format %s: %v", addr, err)
+		}
 		return nil, fmt.Errorf("invalid address format %s: %v", addr, err)
 	}
 	logging.Debug("Successfully parsed address: %s", addr)
@@ -80,7 +84,10 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 		logging.Debug("Dialing direct TCP connection to %s:%s", host, port)
 		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 		if err != nil {
-			logging.Error("Failed to establish clearnet connection to %s:%s: %v", host, port, err)
+			// Only log if not in SILENT mode
+			if logging.GetCurrentLevel() != logging.SILENT {
+				logging.Error("Failed to establish clearnet connection to %s:%s: %v", host, port, err)
+			}
 		} else {
 			logging.Debug("Successfully established clearnet connection to %s:%s", host, port)
 		}
@@ -90,13 +97,19 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	if strings.HasSuffix(host, ".loki") {
 		logging.Info("Using lokinet for: %s", host)
 		if h.loki == nil {
-			logging.Error("Lokinet proxy not configured")
+			// Only log if not in SILENT mode
+			if logging.GetCurrentLevel() != logging.SILENT {
+				logging.Error("Lokinet proxy not configured")
+			}
 			return nil, fmt.Errorf("lokinet proxy not configured")
 		}
 		logging.Debug("Dialing through Lokinet proxy to %s:%s", host, port)
 		conn, err := h.loki.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 		if err != nil {
-			logging.Error("Failed to establish Lokinet connection to %s:%s: %v", host, port, err)
+			// Only log if not in SILENT mode
+			if logging.GetCurrentLevel() != logging.SILENT {
+				logging.Error("Failed to establish Lokinet connection to %s:%s: %v", host, port, err)
+			}
 		} else {
 			logging.Debug("Successfully established Lokinet connection to %s:%s", host, port)
 		}
@@ -105,13 +118,19 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	if strings.HasSuffix(host, ".i2p") {
 		logging.Info("Using i2p for: %s", host)
 		if h.i2p == nil {
-			logging.Error("I2P proxy not configured")
+			// Only log if not in SILENT mode
+			if logging.GetCurrentLevel() != logging.SILENT {
+				logging.Error("I2P proxy not configured")
+			}
 			return nil, fmt.Errorf("i2p proxy not configured")
 		}
 		logging.Debug("Dialing through I2P proxy to %s:%s", host, port)
 		conn, err := h.i2p.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 		if err != nil {
-			logging.Error("Failed to establish I2P connection to %s:%s: %v", host, port, err)
+			// Only log if not in SILENT mode
+			if logging.GetCurrentLevel() != logging.SILENT {
+				logging.Error("Failed to establish I2P connection to %s:%s: %v", host, port, err)
+			}
 		} else {
 			logging.Debug("Successfully established I2P connection to %s:%s", host, port)
 		}
@@ -120,7 +139,10 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	
 	logging.Info("Using tor for: %s", host)
 	if h.onion == nil {
-		logging.Error("Tor proxy not configured")
+		// Only log if not in SILENT mode
+		if logging.GetCurrentLevel() != logging.SILENT {
+			logging.Error("Tor proxy not configured")
+		}
 		return nil, fmt.Errorf("tor proxy not configured")
 	}
 	logging.Debug("Attempting to dial onion address %s via Tor SOCKS proxy", addr)
@@ -132,7 +154,10 @@ func (h *httpProxyHandler) dialOut(addr string) (net.Conn, error) {
 	
 	conn, err := h.onion.Dial("tcp", addr)
 	if err != nil {
-		logging.Error("Failed to connect to onion site %s: %v", addr, err)
+		// Only log if not in SILENT mode
+		if logging.GetCurrentLevel() != logging.SILENT {
+			logging.Error("Failed to connect to onion site %s: %v", addr, err)
+		}
 		return nil, err
 	}
 	
@@ -383,7 +408,7 @@ func main() {
 
 	if torAddr != "" {
 		logging.Info("Initializing Tor proxy at %s", torAddr)
-		onionsock, err = proxy.SOCKS5("tcp", torAddr, nil, nil)
+		onionsock, err = silentproxy.SOCKS5("tcp", torAddr, nil, nil)
 		if err != nil {
 			logging.Error("Failed to create Tor proxy to %s: %s", torAddr, err.Error())
 			os.Exit(1)
@@ -392,7 +417,7 @@ func main() {
 
 	if i2pAddr != "" {
 		logging.Info("Initializing I2P proxy at %s", i2pAddr)
-		i2psock, err = proxy.SOCKS5("tcp", i2pAddr, nil, nil)
+		i2psock, err = silentproxy.SOCKS5("tcp", i2pAddr, nil, nil)
 		if err != nil {
 			logging.Error("Failed to create I2P proxy to %s: %s", i2pAddr, err.Error())
 			os.Exit(1)
@@ -401,7 +426,7 @@ func main() {
 
 	if lokiAddr != "" {
 		logging.Info("Initializing Lokinet proxy at %s", lokiAddr)
-		lokisock, err = proxy.SOCKS5("tcp", lokiAddr, nil, nil)
+		lokisock, err = silentproxy.SOCKS5("tcp", lokiAddr, nil, nil)
 		if err != nil {
 			logging.Error("Failed to create Lokinet proxy to %s: %s", lokiAddr, err.Error())
 			os.Exit(1)
@@ -452,7 +477,10 @@ func main() {
 				if strings.HasSuffix(host, ".loki") {
 					logging.Info("Using lokinet for: %s", host)
 					if lokisock == nil {
-						logging.Error("Lokinet proxy not configured")
+						// Only log if not in SILENT mode
+						if logging.GetCurrentLevel() != logging.SILENT {
+							logging.Error("Lokinet proxy not configured")
+						}
 						return nil, fmt.Errorf("lokinet proxy not configured")
 					}
 					return lokisock.Dial("tcp", addr)
@@ -460,14 +488,20 @@ func main() {
 				if strings.HasSuffix(host, ".i2p") {
 					logging.Info("Using i2p for: %s", host)
 					if i2psock == nil {
-						logging.Error("I2P proxy not configured")
+						// Only log if not in SILENT mode
+						if logging.GetCurrentLevel() != logging.SILENT {
+							logging.Error("I2P proxy not configured")
+						}
 						return nil, fmt.Errorf("i2p proxy not configured")
 					}
 					return i2psock.Dial("tcp", addr)
 				}
 				logging.Info("Using tor for: %s", host)
 				if onionsock == nil {
-					logging.Error("Tor proxy not configured")
+					// Only log if not in SILENT mode
+					if logging.GetCurrentLevel() != logging.SILENT {
+						logging.Error("Tor proxy not configured")
+					}
 					return nil, fmt.Errorf("tor proxy not configured")
 				}
 				logging.Debug("Attempting to dial onion address %s via Tor SOCKS proxy", addr)
@@ -479,7 +513,10 @@ func main() {
 				
 				conn, err := onionsock.Dial("tcp", addr)
 				if err != nil {
-					logging.Error("Failed to connect to onion site %s: %v", addr, err)
+					// Only log if not in SILENT mode
+					if logging.GetCurrentLevel() != logging.SILENT {
+						logging.Error("Failed to connect to onion site %s: %v", addr, err)
+					}
 					return nil, err
 				}
 				
