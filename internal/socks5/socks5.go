@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 )
 
 const (
@@ -46,7 +45,7 @@ func New(conf *Config) (*Server, error) {
 	}
 
 	if conf.Logger == nil {
-		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
+		conf.Logger = log.New(io.Discard, "", 0)
 	}
 
 	server := &Server{
@@ -85,6 +84,8 @@ func (s *Server) ServeConn(conn net.Conn) error {
 	defer conn.Close()
 	bufConn := bufio.NewReader(conn)
 
+	s.config.Logger.Printf("New SOCKS5 connection from %s", conn.RemoteAddr())
+	
 	version := []byte{0}
 	if _, err := bufConn.Read(version); err != nil {
 		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
@@ -96,6 +97,8 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
+	
+	s.config.Logger.Printf("SOCKS5 version %d connection from %s", version[0], conn.RemoteAddr())
 
 	authContext, err := s.authenticate(conn, bufConn)
 	if err != nil {
@@ -103,26 +106,38 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
+	
+	s.config.Logger.Printf("Client %s authenticated using method %d", conn.RemoteAddr(), authContext.Method)
+	
 	var req Request
 	err = readRequest(bufConn, &req)
 	if err != nil {
 		if err == unrecognizedAddrType {
+			s.config.Logger.Printf("[ERR] socks: Unrecognized address type from %s", conn.RemoteAddr())
 			if err := sendReply(conn, addrTypeNotSupported, nil); err != nil {
+				s.config.Logger.Printf("[ERR] socks: Failed to send reply: %v", err)
 				return fmt.Errorf("Failed to send reply: %v", err)
 			}
 		}
+		s.config.Logger.Printf("[ERR] socks: Failed to read destination address: %v", err)
 		return fmt.Errorf("Failed to read destination address: %v", err)
 	}
+	
 	req.AuthContext = authContext
 	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 		req.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
+	
+	s.config.Logger.Printf("SOCKS5 request: %d (1=connect, 2=bind, 3=associate) to %s from %s", 
+		req.Command, req.DestAddr.String(), conn.RemoteAddr())
 
 	if err := s.handleRequest(&req, conn); err != nil {
 		if netErr, ok := err.(*net.OpError); ok && netErr.Err.Error() == "use of closed network connection" {
+			s.config.Logger.Printf("Connection closed by client: %s", conn.RemoteAddr())
 			return nil
 		}
 		if err == io.EOF {
+			s.config.Logger.Printf("Client closed connection: %s", conn.RemoteAddr())
 			return nil
 		}
 		err = fmt.Errorf("Failed to handle request: %v", err)
@@ -130,5 +145,6 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		return err
 	}
 
+	s.config.Logger.Printf("SOCKS5 session completed for %s", conn.RemoteAddr())
 	return nil
 }

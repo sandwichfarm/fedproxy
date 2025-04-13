@@ -129,58 +129,81 @@ func (s *Server) handleRequest(req *Request, conn socksConn) error {
 // handleConnect is used to handle a connect command
 func (s *Server) handleConnect(ctx context.Context, conn socksConn, req *Request) error {
 	// Check if this is allowed
+	s.config.Logger.Printf("Processing connect request to %s", req.DestAddr.String())
+	
 	if ctx_, ok := s.config.Rules.Allow(ctx, req); !ok {
+		s.config.Logger.Printf("Connect to %v blocked by rules", req.DestAddr)
 		if err := sendReply(conn, ruleFailure, nil); err != nil {
+			s.config.Logger.Printf("Failed to send rule failure reply: %v", err)
 			return fmt.Errorf("Failed to send reply: %v", err)
 		}
 		return fmt.Errorf("Connect to %v blocked by rules", req.DestAddr)
 	} else {
 		ctx = ctx_
 	}
+	
+	s.config.Logger.Printf("Connect to %v allowed by rules", req.DestAddr)
 
 	// Attempt to connect
 	dial := s.config.Dial
 	if dial == nil {
+		s.config.Logger.Printf("Using default dialer for %v", req.DestAddr)
 		dial = func(addr string) (net.Conn, error) {
 			return net.Dial("tcp", addr)
 		}
+	} else {
+		s.config.Logger.Printf("Using custom dialer for %v", req.DestAddr)
 	}
+	
+	s.config.Logger.Printf("Dialing connection to %v", req.ConnectAddress())
 	target, err := dial(req.ConnectAddress())
 	if err != nil {
 		msg := err.Error()
 		resp := hostUnreachable
 		if strings.Contains(msg, "refused") {
 			resp = connectionRefused
+			s.config.Logger.Printf("Connection refused to %v: %v", req.DestAddr, err)
 		} else if strings.Contains(msg, "network is unreachable") {
 			resp = networkUnreachable
+			s.config.Logger.Printf("Network unreachable for %v: %v", req.DestAddr, err)
+		} else {
+			s.config.Logger.Printf("Host unreachable for %v: %v", req.DestAddr, err)
 		}
 		if err := sendReply(conn, resp, nil); err != nil {
+			s.config.Logger.Printf("Failed to send connection failure reply: %v", err)
 			return fmt.Errorf("Failed to send reply: %v", err)
 		}
 		return fmt.Errorf("Connect to %v failed: %v", req.DestAddr, err)
 	}
 	defer target.Close()
+	
+	s.config.Logger.Printf("Successfully established connection to %v", req.DestAddr)
 
 	// Send success
 	local := target.LocalAddr().(*net.TCPAddr)
 	bind := AddrSpec{IP: local.IP, Port: local.Port}
+	s.config.Logger.Printf("Sending success reply to client with bound address: %v", bind.String())
 	if err := sendReply(conn, successReply, &bind); err != nil {
+		s.config.Logger.Printf("Failed to send success reply: %v", err)
 		return fmt.Errorf("Failed to send reply: %v", err)
 	}
 
 	// Start proxying
+	s.config.Logger.Printf("Starting bidirectional proxy between client and target: %v", req.DestAddr)
 	errCh := make(chan error, 2)
-	go proxy(target, req.bufConn, errCh)
-	go proxy(conn, target, errCh)
+	go s.proxy(target, req.bufConn, errCh)
+	go s.proxy(conn, target, errCh)
 
 	// Wait
 	for i := 0; i < 2; i++ {
 		e := <-errCh
 		if e != nil {
+			s.config.Logger.Printf("Proxy error: %v", e)
 			// return from this function closes target (and conn).
 			return e
 		}
 	}
+	s.config.Logger.Printf("Completed proxying for %v", req.DestAddr)
 	return nil
 }
 
@@ -303,9 +326,77 @@ func sendReply(w io.Writer, resp uint8, addr *AddrSpec) error {
 
 // proxy is used to suffle data from src to destination, and sends errors
 // down a dedicated channel
-func proxy(dst socksConn, src io.Reader, errCh chan error) {
+func (s *Server) proxy(dst socksConn, src io.Reader, errCh chan error) {
 	var buf [1024 * 4]byte
-	_, err := io.CopyBuffer(dst, src, buf[:])
+	dstName := "target"
+	if conn, ok := dst.(net.Conn); ok {
+		dstName = conn.RemoteAddr().String()
+	}
+	srcName := "client"
+	if srcConn, ok := src.(net.Conn); ok {
+		srcName = srcConn.RemoteAddr().String()
+	}
+	
+	s.config.Logger.Printf("Starting to proxy data from %s to %s", srcName, dstName)
+	
+	// Check if this involves an onion site
+	isOnion := false
+	if dstAddr, ok := dst.(net.Addr); ok {
+		dstStr := dstAddr.String()
+		if strings.Contains(dstStr, ".onion") {
+			isOnion = true
+			s.config.Logger.Printf("Proxying data to onion site: %s", dstStr)
+		}
+	}
+	
+	// Track progress during copy operation by copying in smaller chunks
+	var total int64
+	var err error
+	loggingThreshold := int64(64 * 1024) // Default: log every 64KB
+	if isOnion {
+		loggingThreshold = 4 * 1024 // For onion sites: log every 4KB
+	}
+	
+	for {
+		// Use smaller buffer for more frequent updates
+		nr, er := src.Read(buf[:4096])
+		if nr > 0 {
+			nw, ew := dst.Write(buf[:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = fmt.Errorf("invalid write result")
+				}
+			}
+			total += int64(nw)
+			
+			// Log progress periodically
+			if total % loggingThreshold == 0 { // Log based on threshold
+				s.config.Logger.Printf("Transferred %d bytes from %s to %s", total, srcName, dstName)
+			}
+			
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = fmt.Errorf("short write")
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	
 	dst.Close()
+	if err != nil && err != io.EOF {
+		s.config.Logger.Printf("Error copying data from %s to %s: %v", srcName, dstName, err)
+	} else {
+		s.config.Logger.Printf("Completed copying %d bytes from %s to %s", total, srcName, dstName)
+	}
 	errCh <- err
 }
