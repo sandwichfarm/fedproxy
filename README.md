@@ -63,8 +63,8 @@ The proxy will be available at the specified bind address. Each network (.onion,
 ## Why the fork?
 I liked **fedproxy** but needed a less opinionated solution.
 
-**fedproxy** is loki-first and treats tor and i2p as second-class citizens, and clearnet as a third-class citizen.
-**hedproxy** treats all as first class citizens.
+**fedproxy** is loki-first, assumes loki is running over VPN/transparent proxy (default Loki desktop experience) and treats tor and i2p as second-class citizens, and clearnet as a third-class citizen.
+**hedproxy** treats all as first class citizens and assumes nothing.
 
 ## Differences from fedproxy
 
